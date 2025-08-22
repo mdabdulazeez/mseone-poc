@@ -35,7 +35,7 @@ class Project:
     actual_completion: Optional[datetime] = None
     budget: Optional[float] = None
     risk_level: str = "LOW"
-    dependencies: List[str] = Field(default_factory=list)
+    dependencies: List[str]
 
 
 class ProjectCreate(BaseModel):
@@ -97,12 +97,12 @@ class ProjectCreateInput:
     status: str = "PLANNING"
     owner: str
     team: str
-    tags: List[str] = Field(default_factory=list)
+    tags: Optional[List[str]] = None
     priority: str = "MEDIUM"
     estimated_completion: Optional[datetime] = None
     budget: Optional[float] = None
     risk_level: str = "LOW"
-    dependencies: List[str] = Field(default_factory=list)
+    dependencies: Optional[List[str]] = None
 
 
 @strawberry.input

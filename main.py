@@ -38,15 +38,26 @@ async def lifespan(app: FastAPI):
         storage_service = AzureStorageService()
         cosmos_service = CosmosDBService()
         
-        # Test connections
-        await storage_service.test_connection()
-        await cosmos_service.test_connection()
+        # Test connections (gracefully handle failures for demo)
+        try:
+            await storage_service.test_connection()
+            logger.info("✅ Azure Storage connection successful")
+        except Exception as e:
+            logger.warning(f"⚠️ Azure Storage connection failed (demo mode): {e}")
+            
+        try:
+            await cosmos_service.test_connection()
+            logger.info("✅ Cosmos DB connection successful")
+        except Exception as e:
+            logger.warning(f"⚠️ Cosmos DB connection failed (demo mode): {e}")
         
-        logger.info("✅ Azure services initialized successfully")
+        logger.info("✅ Azure services initialized (some may be in demo mode)")
         yield
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize services: {e}")
+        logger.info("ℹ️ Running in offline mode for GraphQL testing")
+        # Still yield to allow the app to start for testing
         yield
     finally:
         logger.info("Shutting down services...")
@@ -68,13 +79,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# GraphQL context getter with optional authentication
+async def get_graphql_context(request=None) -> dict:
+    """Get GraphQL context with services and optional user authentication"""
+    context = {
+        "storage_service": storage_service,
+        "cosmos_service": cosmos_service,
+        "demo_mode": storage_service is None or cosmos_service is None
+    }
+    
+    # Add user context if authenticated (optional for now)
+    try:
+        if request and request.headers.get("Authorization"):
+            user = await get_current_user(request)
+            context["user"] = user
+    except Exception as e:
+        # Authentication is optional for GraphQL queries/mutations
+        # In production, you might want to make this required for mutations
+        logger.debug(f"Authentication failed (optional): {e}")
+        pass
+    
+    return context
+
 # GraphQL Router (PoC Requirement: GraphQL APIs)
 graphql_app = GraphQLRouter(
     schema,
-    context_getter=lambda: {
-        "storage_service": storage_service,
-        "cosmos_service": cosmos_service
-    }
+    context_getter=get_graphql_context
 )
 app.include_router(graphql_app, prefix="/graphql")
 
@@ -109,14 +139,14 @@ async def root():
     }
 
 # Protected endpoint example (PoC Requirement: Authentication)
-# @app.get("/protected")
-# async def protected_endpoint(current_user: dict = Depends(get_current_user)):
-#     """Example of protected endpoint with Azure AD authentication"""
-#     return {
-#         "message": "This is a protected endpoint",
-#         "user": current_user.get("preferred_username", "Unknown"),
-#         "roles": current_user.get("roles", [])
-#     }
+@app.get("/protected")
+async def protected_endpoint(current_user: dict = Depends(get_current_user)):
+    """Example of protected endpoint with Azure AD authentication"""
+    return {
+        "message": "This is a protected endpoint",
+        "user": current_user.get("preferred_username", "Unknown"),
+        "roles": current_user.get("roles", [])
+    }
 
 # File upload endpoint (PoC Requirement: File Management)
 @app.post("/upload")

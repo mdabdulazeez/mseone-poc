@@ -148,6 +148,11 @@ class CosmosDBService:
             if "id" not in project_data:
                 raise ValueError("Project ID is required")
             
+            # Ensure datetime fields are properly serialized
+            for field, value in project_data.items():
+                if isinstance(value, datetime):
+                    project_data[field] = value.isoformat()
+            
             # Add metadata
             project_data["_ts"] = int(datetime.utcnow().timestamp())
             project_data["_etag"] = None
@@ -175,6 +180,12 @@ class CosmosDBService:
             
             # Apply updates
             updated_project = {**existing_project, **updates}
+            
+            # Ensure datetime fields are properly serialized
+            for field, value in updated_project.items():
+                if isinstance(value, datetime):
+                    updated_project[field] = value.isoformat()
+            
             updated_project["_ts"] = int(datetime.utcnow().timestamp())
             
             # Update the item
