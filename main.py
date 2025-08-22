@@ -2,12 +2,14 @@
 DevOps PoC - Main FastAPI Application
 Demonstrates: API Development with FastAPI + GraphQL
 """
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from strawberry.fastapi import GraphQLRouter
 from contextlib import asynccontextmanager
 import uvicorn
 import logging
+from datetime import datetime
+import uuid
 
 from config.settings import get_settings
 from app.schema.schema import schema
@@ -115,6 +117,38 @@ async def root():
 #         "user": current_user.get("preferred_username", "Unknown"),
 #         "roles": current_user.get("roles", [])
 #     }
+
+# File upload endpoint (PoC Requirement: File Management)
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload file to Azure Blob Storage"""
+    try:
+        if storage_service:
+            # Generate unique filename
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            filename = f"{timestamp}-{file.filename}"
+            
+            # Read file content
+            content = await file.read()
+            
+            # Upload to Azure Storage
+            result = await storage_service.upload_text(
+                container_name="api-results",
+                blob_name=filename,
+                data=content.decode('utf-8') if file.content_type and 'text' in file.content_type else str(content)
+            )
+            
+            return {
+                "message": "File uploaded successfully",
+                "filename": filename,
+                "storage_url": result["url"],
+                "size": result["length"]
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Storage service not available")
+    except Exception as e:
+        logger.error(f"File upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 if __name__ == "__main__":
     settings = get_settings()
