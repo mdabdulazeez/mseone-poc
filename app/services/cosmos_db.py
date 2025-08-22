@@ -157,10 +157,9 @@ class CosmosDBService:
             project_data["_ts"] = int(datetime.utcnow().timestamp())
             project_data["_etag"] = None
             
-            # Create the item
+            # Create the item (fix partition key format)
             response = self.container.create_item(
-                body=project_data,
-                partition_key=project_data["id"]
+                body=project_data
             )
             
             logger.info(f"Created project: {project_data['id']}")
@@ -191,8 +190,7 @@ class CosmosDBService:
             # Update the item
             response = self.container.replace_item(
                 item=project_id,
-                body=updated_project,
-                partition_key=project_id
+                body=updated_project
             )
             
             logger.info(f"Updated project: {project_id}")

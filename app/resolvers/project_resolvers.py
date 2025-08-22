@@ -256,7 +256,10 @@ class ProjectMutation:
             except Exception as e:
                 logger.warning(f"Failed to store API result: {e}")
         
-        return Project(**created_project)
+        # Filter out Cosmos DB internal fields before creating Project object
+        clean_data = {k: v for k, v in created_project.items() 
+                     if not k.startswith('_') and k not in ['ttl', 'pk']}
+        return Project(**clean_data)
     
     async def update_project(
         self, 
@@ -324,7 +327,10 @@ class ProjectMutation:
             except Exception as e:
                 logger.warning(f"Failed to store API result: {e}")
         
-        return Project(**updated_project)
+        # Filter out Cosmos DB internal fields before creating Project object  
+        clean_data = {k: v for k, v in updated_project.items() 
+                     if not k.startswith('_') and k not in ['ttl', 'pk']}
+        return Project(**clean_data)
     
     async def delete_project(self, info: Info, id: str) -> bool:
         """Delete a project"""

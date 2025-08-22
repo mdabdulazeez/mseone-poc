@@ -68,15 +68,40 @@ async def get_current_user(request: Request) -> Dict[str, object]:
     try:
         signing_key = _get_signing_key(token)
 
-        options = {"verify_aud": True, "verify_signature": True, "verify_exp": True, "verify_iss": True}
-        decoded = jwt.decode(
-            token,
-            signing_key,
-            algorithms=["RS256"],
-            audience=settings.AZURE_AD_AUDIENCE,
-            issuer=f"{settings.AZURE_AD_AUTHORITY.rstrip('/')}/v2.0",
-            options=options,
-        )
+        # Handle both v1.0 and v2.0 token formats
+        # Extract tenant ID from token for accurate issuer validation
+        unverified_payload = jwt.decode(token, options={"verify_signature": False})
+        token_tenant_id = unverified_payload.get("tid", "")
+        
+        possible_issuers = [
+            f"https://sts.windows.net/{token_tenant_id}/",                    # v1.0 tokens (your format)
+            f"https://login.microsoftonline.com/{token_tenant_id}/v2.0",      # v2.0 tokens
+            f"{settings.AZURE_AD_AUTHORITY.rstrip('/')}/v2.0",              # Configured v2.0 format
+        ]
+        
+        # Try each issuer format
+        decoded = None
+        last_error = None
+        
+        for issuer in possible_issuers:
+            try:
+                options = {"verify_aud": True, "verify_signature": True, "verify_exp": True, "verify_iss": True}
+                decoded = jwt.decode(
+                    token,
+                    signing_key,
+                    algorithms=["RS256"],
+                    audience=settings.AZURE_AD_AUDIENCE,
+                    issuer=issuer,
+                    options=options,
+                )
+                break  # Success with this issuer
+            except jwt.InvalidIssuerError as e:
+                last_error = e
+                continue  # Try next issuer
+        
+        if decoded is None:
+            # If all issuers failed, raise the last error
+            raise last_error or jwt.InvalidIssuerError("No valid issuer found")
 
         # Basic shape of returned user dict
         preferred_username = (

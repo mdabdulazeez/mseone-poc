@@ -51,7 +51,10 @@ class Query:
         
         project_data = await cosmos_service.get_project(id)
         if project_data:
-            return Project(**project_data)
+            # Filter out Cosmos DB internal fields
+            clean_data = {k: v for k, v in project_data.items() 
+                         if not k.startswith('_') and k not in ['ttl', 'pk']}
+            return Project(**clean_data)
         return None
     
     @strawberry.field(description="List projects with filtering and pagination")
@@ -130,7 +133,15 @@ class Query:
             pagination_params=pagination_params
         )
         
-        return [Project(**project_data) for project_data in projects_data]
+        # Filter out Cosmos DB internal fields before creating Project objects
+        filtered_projects = []
+        for project_data in projects_data:
+            # Remove Cosmos DB internal fields
+            clean_data = {k: v for k, v in project_data.items() 
+                         if not k.startswith('_') and k not in ['ttl', 'pk']}
+            filtered_projects.append(Project(**clean_data))
+        
+        return filtered_projects
     
     @strawberry.field(description="Get project statistics")
     async def project_stats(self, info: Info) -> ProjectStats:
